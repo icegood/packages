@@ -235,6 +235,7 @@ $(call Package/collectd/Default)
 	  +jshn \
 	  +PACKAGE_collectd-mod-lua:liblua
   MENU:=1
+  ABI_VERSION:=.ice
 endef
 
 define Package/collectd/description
@@ -392,11 +393,6 @@ define BuildPlugin
 			$(PKG_INSTALL_DIR)/usr/lib/collectd/$$$$$$$${m}.so \
 			$$(1)/usr/lib/collectd/ ; \
 	done
-	if [ -f ./files/usr/share/collectd/plugin/$(1).json ]; then \
-		$(INSTALL_DIR) $$(1)/usr/share/collectd/plugin ; \
-		$(INSTALL_DATA) ./files/usr/share/collectd/plugin/$(1).json \
-			$$(1)/usr/share/collectd/plugin/$(1).json ; \
-	fi
   endef
 
   $$(eval $$(call BuildPackage,collectd-mod-$(1)))
@@ -410,19 +406,6 @@ define BuildScriptLuaPlugin
   $$(call Package/collectd/Default)
     TITLE:=$(2) plugin
     DEPENDS:= $(4)
-  endef
-
-  define Package/collectd-mod-$(1)/install
-	$(INSTALL_DIR) $$(1)/usr/lib/collectd-mod-lua
-	for m in $(3); do \
-		${INSTALL_DATA} \
-			./files/lua-scripts/$$$$$$$${m}.lua $$(1)/usr/lib/collectd-mod-lua/ ; \
-	done
-	if [ -f ./files/usr/share/collectd/plugin/$(1).json ]; then \
-		$(INSTALL_DIR) $$(1)/usr/share/collectd/plugin ; \
-		$(INSTALL_DATA) ./files/usr/share/collectd/plugin/$(1).json \
-			$$(1)/usr/share/collectd/plugin/$(1).json ; \
-	fi
   endef
 
   $$(eval $$(call BuildPackage,collectd-mod-$(1)))
@@ -444,11 +427,6 @@ define BuildScriptPlugin
 		${INSTALL_BIN} \
 			./files/exec-scripts/$$$$$$$${m}.sh $$(1)/usr/libexec/collectd/ ; \
 	done
-	if [ -f ./files/usr/share/collectd/plugin/$(1).json ]; then \
-		$(INSTALL_DIR) $$(1)/usr/share/collectd/plugin ; \
-		$(INSTALL_DATA) ./files/usr/share/collectd/plugin/$(1).json \
-			$$(1)/usr/share/collectd/plugin/$(1).json ; \
-	fi
   endef
 
   $$(eval $$(call BuildPackage,collectd-mod-$(1)))
