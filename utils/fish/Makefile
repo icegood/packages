@@ -5,20 +5,25 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fish
-PKG_VERSION:=3.5.0
+PKG_VERSION:=4.0.2
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://github.com/fish-shell/fish-shell/releases/download/$(PKG_VERSION)
-PKG_HASH:=291e4ec7c6c3fea54dc1aed057ce3d42b356fa6f70865627b2c7dfcecaefd210
+PKG_HASH:=6e1ecdb164285fc057b2f35acbdc20815c1623099e7bb47bbfc011120adf7e83
 
 PKG_MAINTAINER:=Curtis Jiang <jqqqqqqqqqq@gmail.com>, Hao Dong <halbertdong@gmail.com>
 PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:fishshell:fish
 
+PKG_BUILD_DEPENDS:=rust/host
+PKG_BUILD_PARALLEL:=1
+
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
+include ../../lang/rust/rust-values.mk
+include ../../lang/rust/rust-package.mk
 
 define Package/fish
   SECTION:=utils
@@ -39,6 +44,9 @@ endef
 CMAKE_OPTIONS += \
 	-DBUILD_DOCS=FALSE \
 	-DWITH_GETTEXT=FALSE
+
+# Make sure rustc and cargo from rust/host are found
+HOST_BUILD_PATH:=$(STAGING_DIR_HOST)/bin:$(PATH)
 
 define Package/fish/install
 	$(INSTALL_DIR) $(1)/usr/bin
