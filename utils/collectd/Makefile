@@ -381,56 +381,25 @@ define BuildPlugin
   PKG_CONFIG_DEPENDS+= CONFIG_PACKAGE_collectd-mod-$(1)
 
   define Package/collectd-mod-$(1)
-  $$(call Package/collectd/Default)
+    $$(call Package/collectd/Default)
     TITLE:=$(2) plugin
     DEPENDS:= collectd $(4)
+    $(if $(5), ABI_VERSION:=$(5))
   endef
 
   define Package/collectd-mod-$(1)/install
-	$(INSTALL_DIR) $$(1)/usr/lib/collectd
 	for m in $(3); do \
-		$(CP) \
-			$(PKG_INSTALL_DIR)/usr/lib/collectd/$$$$$$$${m}.so \
-			$$(1)/usr/lib/collectd/ ; \
+	  case "$$$$$$$$m" in \
+		*exec-scripts*) \
+		  $(INSTALL_DIR) $$(1)/usr/libexec/collectd; \
+		  $(INSTALL_BIN) $$$$$$$${m} $$(1)/usr/libexec/collectd/ ;; \
+		*) \
+		  $(INSTALL_DIR) $$(1)/usr/lib/collectd; \
+		  $(CP) $(PKG_INSTALL_DIR)/usr/lib/collectd/$$$$$$$${m}.so $$(1)/usr/lib/collectd/ ;; \
+	  esac; \
 	done
   endef
-
   $$(eval $$(call BuildPackage,collectd-mod-$(1)))
-
-endef
-
-define BuildScriptLuaPlugin
-  PKG_CONFIG_DEPENDS+= CONFIG_PACKAGE_collectd-mod-$(1)
-
-  define Package/collectd-mod-$(1)
-  $$(call Package/collectd/Default)
-    TITLE:=$(2) plugin
-    DEPENDS:= $(4)
-  endef
-
-  $$(eval $$(call BuildPackage,collectd-mod-$(1)))
-
-endef
-
-define BuildScriptPlugin
-  PKG_CONFIG_DEPENDS+= CONFIG_PACKAGE_collectd-mod-$(1)
-
-  define Package/collectd-mod-$(1)
-  $$(call Package/collectd/Default)
-    TITLE:=$(2) plugin
-    DEPENDS:= $(4)
-  endef
-
-  define Package/collectd-mod-$(1)/install
-	$(INSTALL_DIR) $$(1)/usr/libexec/collectd
-	for m in $(3); do \
-		${INSTALL_BIN} \
-			./files/exec-scripts/$$$$$$$${m}.sh $$(1)/usr/libexec/collectd/ ; \
-	done
-  endef
-
-  $$(eval $$(call BuildPackage,collectd-mod-$(1)))
-
 endef
 
 $(eval $(call BuildPackage,collectd))
@@ -455,7 +424,7 @@ $(eval $(call BuildPlugin,dns,DNS traffic input,dns,+PACKAGE_collectd-mod-dns:li
 $(eval $(call BuildPlugin,email,email output,email,))
 $(eval $(call BuildPlugin,entropy,Entropy amount input,entropy,))
 $(eval $(call BuildPlugin,ethstat,Ethernet adapter statistics input,ethstat,))
-$(eval $(call BuildPlugin,exec,process exec input,exec,))
+$(eval $(call BuildPlugin,exec,process exec input,exec,,.ice))
 $(eval $(call BuildPlugin,filecount,file count input,filecount,))
 $(eval $(call BuildPlugin,fscache,file-system based caching framework input,fscache,))
 $(eval $(call BuildPlugin,interface,network interfaces input,interface,))
@@ -465,6 +434,7 @@ $(eval $(call BuildPlugin,irq,interrupt usage input,irq,))
 $(eval $(call BuildPlugin,iwinfo,libiwinfo wireless statistics,iwinfo,+PACKAGE_collectd-mod-iwinfo:libiwinfo))
 $(eval $(call BuildPlugin,load,system load input,load,))
 $(eval $(call BuildPlugin,logfile,log files output,logfile,))
+$(eval $(call BuildPlugin,ltq-dsl,Lantiq DSL collection,,@ltq-dsl-app +PACKAGE_collectd-mod-ltq-dsl:collectd-mod-lua +libubus-lua))
 $(eval $(call BuildPlugin,lua,lua input/output,lua,+PACKAGE_collectd-mod-lua:liblua))
 $(eval $(call BuildPlugin,match-empty-counter,empty-counter match,match_empty_counter,))
 $(eval $(call BuildPlugin,match-hashed,hashed match,match_hashed,))
@@ -488,9 +458,10 @@ $(eval $(call BuildPlugin,powerdns,PowerDNS server status input,powerdns,))
 $(eval $(call BuildPlugin,processes,process status input,processes,+PACKAGE_collectd-mod-processes:libmnl))
 $(eval $(call BuildPlugin,protocols,network protocols input,protocols,))
 $(eval $(call BuildPlugin,routeros,MikroTik RouterOS input,routeros,+PACKAGE_collectd-mod-routeros:librouteros))
-$(eval $(call BuildPlugin,rrdtool,RRDtool output,rrdtool,+PACKAGE_collectd-mod-rrdtool:librrd1))
-$(eval $(call BuildPlugin,sensors,lm_sensors input,sensors,+PACKAGE_collectd-mod-sensors:lm-sensors))
-$(eval $(call BuildPlugin,smart,smart input,smart,+PACKAGE_collectd-mod-smart:libatasmart))
+$(eval $(call BuildPlugin,rrdtool,RRDtool output,rrdtool ./files/exec-scripts/rrd-tune.sh,+PACKAGE_collectd-mod-rrdtool:librrd1,.ice))
+$(eval $(call BuildPlugin,sensors,lm_sensors input,sensors,+PACKAGE_collectd-mod-sensors:lm-sensors,.ice))
+$(eval $(call BuildPlugin,sqm,SQM/qdisc collection,./files/exec-scripts/sqm_collectd.sh,+PACKAGE_collectd-mod-sqm:collectd-mod-exec))
+$(eval $(call BuildPlugin,smart,smart input,smart ./files/exec-scripts/smartctl.sh,+PACKAGE_collectd-mod-smart:libatasmart,.ice))
 $(eval $(call BuildPlugin,snmp,SNMP input,snmp,+PACKAGE_collectd-mod-snmp:libnetsnmp))
 $(eval $(call BuildPlugin,snmp6,snmp6 input,snmp6,))
 $(eval $(call BuildPlugin,statsd,statsd input,statsd,))
@@ -513,6 +484,3 @@ $(eval $(call BuildPlugin,wireless,wireless status input,wireless,))
 $(eval $(call BuildPlugin,write-graphite,Carbon/Graphite output,write_graphite,+PACKAGE_collectd-mod-write-graphite:libpthread))
 $(eval $(call BuildPlugin,write-http,HTTP POST output,write_http,+PACKAGE_collectd-mod-write-http:libcurl))
 $(eval $(call BuildPlugin,write-prometheus,Prometheus output,write_prometheus,+PACKAGE_collectd-mod-write-prometheus:libprotobuf-c +PACKAGE_collectd-mod-write-prometheus:libmicrohttpd))
-
-$(eval $(call BuildScriptPlugin,sqm,SQM/qdisc collection,sqm_collectd,+PACKAGE_collectd-mod-sqm:collectd-mod-exec))
-$(eval $(call BuildScriptLuaPlugin,ltq-dsl,Lantiq DSL collection,dsl,@ltq-dsl-app +PACKAGE_collectd-mod-ltq-dsl:collectd-mod-lua +libubus-lua))
