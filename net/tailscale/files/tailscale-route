@@ -1,0 +1,15 @@
+[ "$ACTION" = "ifup" ] && [ "$DEVICE" = "tailscale0" ] || exit 0
+
+retries=0
+while [ $retries -lt 30 ]; do
+    ts_ip=$(tailscale ip -4 2>/dev/null)
+    if [ -n "$ts_ip" ]; then
+        ip route add local "$ts_ip" dev lo 2>/dev/null || true
+        logger -t tailscale-route "Added local route for $ts_ip"
+        exit 0
+    fi
+    sleep 1
+    retries=$((retries + 1))
+done
+
+logger -t tailscale-route "WARNING: timed out waiting for Tailscale IP"

@@ -2,7 +2,11 @@
 This readme should help you with tailscale client setup.
 
 > [!NOTE]
-> By default this package will use nftables. If you wish to use iptables, the config file `/etc/config/tailscale` can be modfied, changing the line `fw_mode 'nftables'` to `fw_mode 'iptables'`. You can then run `/etc/init.d/tailscale restart` to restart tailscale using your chosen method
+> This package now launches `tailscaled` with a generated temporary config file via `--config`.
+> You can change that file location with:
+> `option tailscaled_config_file '/var/run/tailscale/tailscaled-config.hujson'`
+> Put `tailscaled` schema options in `config daemon_settings 'daemon_settings'`
+> (for example `option accept_routes '1'`, `list advertise_routes '192.168.50.0/24'`).
 
 ## First setup
 

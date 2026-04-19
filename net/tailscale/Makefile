@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=tailscale
-PKG_VERSION:=1.94.1
+PKG_VERSION:=1.96.4
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/tailscale/tailscale/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=80eec367cabd6012a668233b11ca5c6df29b0dd24c7cfd74b71958c93ec9b644
+PKG_SOURCE_URL:=https://github.com/tailscale/tailscale/archive/refs/tags/v$(PKG_VERSION).tar.gz
+PKG_HASH:=57b70731af7ae0ed167519924905fd032ddd8559a65bc8a3329d9da495f0feb2
 
 PKG_MAINTAINER:=Zephyr Lykos <self@mochaa.ws>, \
 		Sandro Jäckel <sandro.jaeckel@gmail.com>
@@ -40,7 +40,7 @@ define Package/tailscale
   SUBMENU:=VPN
   TITLE:=Zero config VPN
   URL:=https://tailscale.com
-  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +kmod-tun
+  DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +kmod-tun +jshn
   PROVIDES:=tailscaled
 endef
 
@@ -55,11 +55,12 @@ define Package/tailscale/conffiles
 endef
 
 define Package/tailscale/install
-	$(INSTALL_DIR) $(1)/usr/sbin $(1)/etc/init.d $(1)/etc/config
+	$(INSTALL_DIR) $(1)/usr/sbin $(1)/etc/init.d $(1)/etc/config $(1)/etc/hotplug.d/iface
 	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/tailscaled $(1)/usr/sbin
 	$(LN) tailscaled $(1)/usr/sbin/tailscale
 	$(INSTALL_BIN) ./files//tailscale.init $(1)/etc/init.d/tailscale
 	$(INSTALL_DATA) ./files//tailscale.conf $(1)/etc/config/tailscale
+	$(INSTALL_DATA) ./files/tailscale-route $(1)/etc/hotplug.d/iface/99-tailscale-route
 endef
 
 $(eval $(call BuildPackage,tailscale))
