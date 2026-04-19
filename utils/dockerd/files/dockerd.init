@@ -3,40 +3,15 @@
 USE_PROCD=1
 START=99
 
-extra_command "uciadd" "<interface> <device> <zone> Add docker bridge configuration to network and firewall uci config"
-extra_command "ucidel" "<interface> <device> <zone> Delete docker bridge configuration from network and firewall uci config"
-
 DOCKER_CONF_DIR="/tmp/dockerd"
 DOCKERD_CONF="${DOCKER_CONF_DIR}/daemon.json"
 
+# Include OpenWrt JSON and your local helpers
+. /usr/share/libubox/jshn.sh
+. /usr/share/docker/uci_json.sh  # Update this path to where uci_json.sh is stored
+
 uci_quiet() {
 	uci -q "${@}" >/dev/null
-}
-
-json_add_array_string() {
-	json_add_string "" "${1}"
-}
-
-find_network_device() {
-	local device="${1}"
-	local device_section=""
-
-	check_device() {
-		local cfg="${1}"
-		local device="${2}"
-
-		local type name
-		config_get type "${cfg}" type
-		config_get name "${cfg}" name
-
-		[ "${type}" = "bridge" ] && [ "${name}" = "${device}" ] \
-			&& device_section="${cfg}"
-	}
-
-	config_load network
-	config_foreach check_device device "${device}"
-
-	echo "${device_section}"
 }
 
 boot() {
@@ -44,81 +19,70 @@ boot() {
 }
 
 process_config() {
-	local alt_config_file data_root log_level iptables ip6tables bip
+	local alt_config_file
 
 	[ -f /etc/config/dockerd ] || {
-		# Use the daemon default configuration
 		DOCKERD_CONF=""
 		return 0
 	}
 
-	# reset configuration
+	# Reset configuration directory
 	rm -fr "${DOCKER_CONF_DIR}"
 	mkdir -p "${DOCKER_CONF_DIR}"
 
 	config_load 'dockerd'
+	
+	# Check for alternative config file first
 	config_get alt_config_file globals alt_config_file
 	[ -n "${alt_config_file}" ] && [ -f "${alt_config_file}" ] && {
 		ln -s "${alt_config_file}" "${DOCKERD_CONF}"
 		return 0
 	}
 
-	config_get data_root globals data_root "/opt/docker/"
-	config_get exec_root globals exec_root ""
-	config_get log_level globals log_level "warn"
-	config_get_bool iptables globals iptables "1"
-	config_get_bool ip6tables globals ip6tables "0"
-
-	# Don't add these options by default
-	# omission == docker defaults
-	config_get log_driver globals log_driver ""
-	config_get bip globals bip ""
-	config_get registry_mirrors globals registry_mirrors ""
-	config_get hosts globals hosts ""
-	config_get dns globals dns ""
-	config_get_bool ipv6 globals ipv6 ""
-	config_get ip globals ip ""
-	config_get fixed_cidr globals fixed_cidr ""
-	config_get fixed_cidr_v6 globals fixed_cidr_v6 ""
-	# Use the *_proxy environment variable as the default value
-	config_get http_proxy proxies http_proxy "${http_proxy}"
-	config_get https_proxy proxies https_proxy "${https_proxy}"
-	config_get no_proxy proxies no_proxy "${no_proxy}"
-	config_get storage_driver globals storage_driver ""
-
-	. /usr/share/libubox/jshn.sh
+	# Initialize JSON object
 	json_init
-	json_add_string "data-root" "${data_root}"
-	[ -z "${exec_root}" ] || json_add_string "exec-root" "${exec_root}"
-	json_add_string "log-level" "${log_level}"
-	json_add_boolean "iptables" "${iptables}"
-	json_add_boolean "ip6tables" "${ip6tables}"
-	[ -z "${log_driver}" ] || json_add_string "log-driver" "${log_driver}"
-	[ -z "${bip}" ] || json_add_string "bip" "${bip}"
-	[ -z "${registry_mirrors}" ] || json_add_array "registry-mirrors"
-	[ -z "${registry_mirrors}" ] || config_list_foreach globals registry_mirrors json_add_array_string
-	[ -z "${registry_mirrors}" ] || json_close_array
-	[ -z "${hosts}" ] || json_add_array "hosts"
-	[ -z "${hosts}" ] || config_list_foreach globals hosts json_add_array_string
-	[ -z "${hosts}" ] || json_close_array
-	[ -z "${dns}" ] || json_add_array "dns"
-	[ -z "${dns}" ] || config_list_foreach globals dns json_add_array_string
-	[ -z "${dns}" ] || json_close_array
-	[ -z "${ipv6}" ] || json_add_boolean "ipv6" "${ipv6}"
-	[ -z "${ip}" ] || json_add_string "ip" "${ip}"
-	[ -z "${fixed_cidr}" ] || json_add_string "fixed-cidr" "${fixed_cidr}"
-	[ -z "${fixed_cidr_v6}" ] || json_add_string "fixed-cidr-v6" "${fixed_cidr_v6}"
-	if [ -n "${http_proxy}" ] || [ -n "${https_proxy}" ] || [ -n "${no_proxy}" ]; then
+	
+	# Mapping UCI 'globals' section to JSON
+	json_add_uci_string "data-root" "globals" "data_root"
+	json_add_uci_string "exec-root" "globals" "exec_root"
+	json_add_uci_string "log-level" "globals" "log_level"
+	json_add_uci_string "log-driver" "globals" "log_driver"
+	json_add_uci_string "storage-driver" "globals" "storage_driver"
+	json_add_uci_string "bip" "globals" "bip"
+	json_add_uci_string "ip" "globals" "ip"
+	json_add_uci_string "fixed-cidr" "globals" "fixed_cidr"
+	json_add_uci_string "fixed-cidr-v6" "globals" "fixed_cidr_v6"
+	
+	# Firewall and IPTables (Hardcoded or UCI based)
+	json_add_boolean "iptables" "1"
+	json_add_boolean "ip6tables" "1"
+	json_add_uci_string "firewall-backend" "globals" "firewall_backend"
+
+	# Boolean values
+	json_add_uci_boolean "ipv6" "globals" "ipv6"
+	json_add_uci_boolean "userland-proxy" "globals" "userland_proxy"
+
+	# Arrays
+	json_add_uci_array "registry-mirrors" "globals" "registry_mirrors"
+	json_add_uci_array "hosts" "globals" "hosts"
+	json_add_uci_array "dns" "globals" "dns"
+
+	# Proxies (Nested Object)
+	local h_proxy s_proxy n_proxy
+	config_get h_proxy proxies http_proxy "${http_proxy}"
+	config_get s_proxy proxies https_proxy "${https_proxy}"
+	config_get n_proxy proxies no_proxy "${no_proxy}"
+
+	if [ -n "$h_proxy" ] || [ -n "$s_proxy" ] || [ -n "$n_proxy" ]; then
 		json_add_object "proxies"
-		[ -z "${http_proxy}" ] || json_add_string "http-proxy" "${http_proxy}"
-		[ -z "${https_proxy}" ] || json_add_string "https-proxy" "${https_proxy}"
-		[ -z "${no_proxy}" ] || json_add_string "no-proxy" "${no_proxy}"
+		[ -n "$h_proxy" ] && json_add_string "http-proxy" "$h_proxy"
+		[ -n "$s_proxy" ] && json_add_string "https-proxy" "$s_proxy"
+		[ -n "$n_proxy" ] && json_add_string "no-proxy" "$n_proxy"
 		json_close_object
 	fi
-	[ -z "${storage_driver}" ] || json_add_string "storage-driver" "${storage_driver}"
-	json_dump > "${DOCKERD_CONF}"
 
-	[ "${iptables}" -eq "1" ] && config_foreach iptables_add_blocking_rule firewall
+	# Export to file
+	json_dump > "${DOCKERD_CONF}"
 }
 
 start_service() {
@@ -144,49 +108,6 @@ reload_service() {
 
 service_triggers() {
 	procd_add_reload_trigger 'dockerd'
-}
-
-iptables_add_blocking_rule() {
-	local cfg="${1}"
-
-	local device=""
-	local extra_iptables_args=""
-
-	handle_iptables_rule() {
-		local interface="${1}"
-		local outbound="${2}"
-		local extra_iptables_args="${3}"
-
-		local inbound=""
-
-		. /lib/functions/network.sh
-		network_get_physdev inbound "${interface}"
-
-		[ -z "${inbound}" ] && {
-			logger -t "dockerd-init" -p notice "Unable to get physical device for interface ${interface}"
-			return
-		}
-
-		# Wait for a maximum of 10 second per command, retrying every millisecond
-		local iptables_wait_args="--wait 10 --wait-interval 1000"
-
-		# Ignore errors as it might already be present
-		iptables ${iptables_wait_args} --table filter --new DOCKER-USER 2>/dev/null
-		if ! iptables ${iptables_wait_args} --table filter --check DOCKER-USER --in-interface "${inbound}" --out-interface "${outbound}" ${extra_iptables_args} --jump REJECT 2>/dev/null; then
-			logger -t "dockerd-init" -p notice "Drop traffic from ${inbound} to ${outbound}"
-			iptables ${iptables_wait_args} --table filter --insert DOCKER-USER --in-interface "${inbound}" --out-interface "${outbound}" ${extra_iptables_args} --jump REJECT
-		fi
-	}
-
-	config_get device "${cfg}" device
-
-	[ -z "${device}" ] && {
-		logger -t "dockerd-init" -p notice "No device configured for ${cfg}"
-		return
-	}
-
-	config_get extra_iptables_args "${cfg}" extra_iptables_args
-	config_list_foreach "${cfg}" blocked_interfaces handle_iptables_rule "${device}" "${extra_iptables_args}"
 }
 
 stop_service() {

@@ -1,17 +1,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=dockerd
-PKG_VERSION:=28.5.1
-PKG_RELEASE:=4
+PKG_VERSION:=29.4.0
+PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_GIT_URL:=github.com/moby/moby
-PKG_GIT_REF:=v$(PKG_VERSION)
-PKG_SOURCE_URL:=https://codeload.$(PKG_GIT_URL)/tar.gz/$(PKG_GIT_REF)?
-PKG_HASH:=c17f48bbea209f00e62915dfdbb90e471d296202e466335e43fc9d5982ae3a6a
-PKG_GIT_SHORT_COMMIT:=f8215cc # SHA1 used within the docker executables
+PKG_GIT_REF:=docker-v$(PKG_VERSION)
+PKG_SOURCE_URL:=https://github.com/moby/moby/archive/refs/tags/
+PKG_SOURCE_URL_FILE:=docker-v$(PKG_VERSION).tar.gz
+PKG_HASH:=5c72d84b3dc5558b8520a6687c6d7ee4f13b95edc351a408717e314616a5bfd8
+PKG_GIT_SHORT_COMMIT:=daa0cb7 # SHA1 used within the docker executables
 
 PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
 
@@ -33,21 +34,29 @@ define Package/dockerd
   CATEGORY:=Utilities
   TITLE:=Docker Community Edition Daemon
   URL:=https://www.docker.com/
+
   DEPENDS:=$(GO_ARCH_DEPENDS) \
     +ca-certificates \
     +containerd \
-    +iptables \
-    +iptables-mod-extra \
-    +IPV6:ip6tables \
-    +IPV6:kmod-ipt-nat6 \
-    +KERNEL_SECCOMP:libseccomp \
-    +kmod-ipt-nat \
-    +kmod-ipt-physdev \
-    +kmod-nf-ipvs \
-    +kmod-veth \
     +tini \
     +uci-firewall \
+    +nftables \
+    +kmod-nft-core \
+    +kmod-nft-nat \
+    +kmod-nft-compat \
+    +kmod-nfnetlink \
+    +kmod-nfnetlink-queue \
+    +kmod-nf-conntrack \
+    +kmod-nf-conntrack-netlink \
+    +kmod-nf-nat \
+    +kmod-nf-log \
+    +kmod-nf-reject \
+    +kmod-veth \
+    +kmod-br-netfilter \
+    +KERNEL_SECCOMP:libseccomp \
+    $(if $(CONFIG_IPV6),+kmod-nf-nat6) \
     @!(mips||mips64||mipsel)
+
   USERID:=docker:docker
   MENU:=1
 endef
@@ -93,9 +102,8 @@ endef
 define Build/Prepare
 	$(Build/Prepare/Default)
 
-	# Verify dependencies are the vendored version
-	$(call EnsureVendoredVersion,../containerd/Makefile,containerd.installer)
-	$(call EnsureVendoredVersion,../runc/Makefile,runc.installer)
+	# Moby 29.x no longer ships installer metadata for containerd/runc here.
+	# Keep validating tini, which is still tracked through the installer file.
 	$(call EnsureVendoredVersion,../tini/Makefile,tini.installer)
 
 	# Verify CLI is the same version
@@ -165,7 +173,6 @@ define Package/dockerd/postinst
 #!/bin/sh
 [ -n "$$IPKG_INSTROOT" ] || {
 	/etc/init.d/dockerd enable
-	/etc/init.d/dockerd uciadd
 	/etc/init.d/dockerd start
 }
 endef
@@ -175,7 +182,6 @@ define Package/dockerd/prerm
 [ -n "$$IPKG_INSTROOT" ] || {
 	/etc/init.d/dockerd disable
 	/etc/init.d/dockerd stop
-	/etc/init.d/dockerd ucidel
 }
 endef
 
